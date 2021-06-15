@@ -1,11 +1,12 @@
 package com.example.fitapp
 
+import android.app.DatePickerDialog
 import android.content.Intent
 import android.os.Build
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
 import com.example.fitapp.databinding.ActivityMainBinding
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.fitness.Fitness
@@ -25,6 +26,7 @@ import com.karumi.dexter.listener.PermissionDeniedResponse
 import com.karumi.dexter.listener.PermissionGrantedResponse
 import com.karumi.dexter.listener.PermissionRequest
 import com.karumi.dexter.listener.single.PermissionListener
+import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
 
@@ -37,11 +39,16 @@ class MainActivity : AppCompatActivity() {
         CALORIE_COUNT_DAILY,
         DISTANCE_COUNT_DAILY,
         WRITE_SLEEP_COUNT,
-        SLEEP_COUNT_DAILY
+        SLEEP_COUNT_DAILY,
+        STEPS_COUNT_TOTAL,
+        CALORIE_COUNT_TOTAL,
+        DISTANCE_COUNT_TOTAL,
+        SLEEP_COUNT_TOTAL
     }
     private val SLEEP_SESSION = "sleep session"
     private val SLEEP_SESSION_DESC = "Sleep Session Description"
-    private var sleepCount = 0
+    private var startDate : Long? = null
+    private var endDate : Long? = null
     private var MY_PERMISION_REQUEST_ACTIVITY = 1
     val TAG = "MainActivity"
     var permission:Boolean = false;
@@ -62,14 +69,59 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        binding.btnRefresh.setOnClickListener {
-            checkPermissionAndRun(Task.SUBSCRIBE)
-            checkPermissionAndRun(Task.STEPS_COUNT_DAILY)
-            checkPermissionAndRun(Task.CALORIE_COUNT_DAILY)
-            checkPermissionAndRun(Task.DISTANCE_COUNT_DAILY)
-            checkPermissionAndRun(Task.WRITE_SLEEP_COUNT)
-            checkPermissionAndRun(Task.SLEEP_COUNT_DAILY)
+        val startDatePicker = DatePickerDialog.OnDateSetListener { view, year, monthOfYear, dayOfMonth ->
+            val calendar = Calendar.getInstance(Locale.getDefault())
+            calendar.set(year,monthOfYear,dayOfMonth)
+            val myFormat = "dd/MM/yy" //In which you need put here
+            val sdf = SimpleDateFormat(myFormat, Locale.getDefault())
+            val date = sdf.format(calendar.time)
+            startDate = calendar.timeInMillis
+            binding.etStartDate.setText(date.toString())
         }
+        val endDatePicker = DatePickerDialog.OnDateSetListener { view, year, monthOfYear, dayOfMonth ->
+            val calendar = Calendar.getInstance(Locale.getDefault())
+            calendar.set(year,monthOfYear,dayOfMonth)
+            val myFormat = "dd/MM/yy" //In which you need put here
+            val sdf = SimpleDateFormat(myFormat, Locale.getDefault())
+            val date = sdf.format(calendar.time)
+            endDate = calendar.timeInMillis
+            binding.etEndDate.setText(date.toString())
+        }
+        binding.etEndDate.setOnClickListener {
+            val calendar = Calendar.getInstance(Locale.getDefault())
+            DatePickerDialog(this,endDatePicker,calendar.get(Calendar.YEAR),calendar.get(Calendar.MONTH),calendar.get(Calendar.DAY_OF_MONTH)).show()
+        }
+        binding.etStartDate.setOnClickListener {
+            val calendar = Calendar.getInstance(Locale.getDefault())
+            DatePickerDialog(this,startDatePicker,calendar.get(Calendar.YEAR),calendar.get(Calendar.MONTH),calendar.get(Calendar.DAY_OF_MONTH)).show()
+        }
+        binding.btnGet.setOnClickListener {
+            if (startDate!=null && endDate!=null && startDate!! < endDate!!){
+                //getDaily()
+                getTotal()
+            }
+            else{
+                Toast.makeText(this,"Enter Correct Date!!",Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun getTotal() {
+        checkPermissionAndRun(Task.SUBSCRIBE)
+        checkPermissionAndRun(Task.WRITE_SLEEP_COUNT)
+        checkPermissionAndRun(Task.STEPS_COUNT_TOTAL)
+        checkPermissionAndRun(Task.CALORIE_COUNT_TOTAL)
+        checkPermissionAndRun(Task.DISTANCE_COUNT_TOTAL)
+        checkPermissionAndRun(Task.SLEEP_COUNT_TOTAL)
+    }
+
+    private fun getDaily() {
+        checkPermissionAndRun(Task.SUBSCRIBE)
+        checkPermissionAndRun(Task.STEPS_COUNT_DAILY)
+        checkPermissionAndRun(Task.CALORIE_COUNT_DAILY)
+        checkPermissionAndRun(Task.DISTANCE_COUNT_DAILY)
+        checkPermissionAndRun(Task.WRITE_SLEEP_COUNT)
+        checkPermissionAndRun(Task.SLEEP_COUNT_DAILY)
     }
 
 
@@ -130,7 +182,100 @@ class MainActivity : AppCompatActivity() {
             4->  readDistanceDaily()
             5-> writeSleep()
             6-> readSleepDaily()
+            7 ->stepsCountTotal()
+            8->calorieCountTotal()
+            9->distanceCountTotal()
+            10->sleepCountTotal()
         }
+    }
+
+    private fun sleepCountTotal() {
+        val request = SessionReadRequest.Builder()
+            .includeSleepSessions()
+            .setTimeInterval(startDate!!,endDate!!,TimeUnit.MILLISECONDS)
+            .build()
+        var count = 0L
+        Fitness.getSessionsClient(this,getGoogleAccount())
+            .readSession(request)
+            .addOnSuccessListener {response->
+                for (session in response.sessions){
+                    val sessionStart = session.getStartTime(TimeUnit.MILLISECONDS)
+                    val sessionEnd = session.getEndTime(TimeUnit.MILLISECONDS)
+                    count += (sessionEnd - sessionStart)
+                    Log.i(TAG, "Sleep between $sessionStart and $sessionEnd")
+                }
+                count = TimeUnit.HOURS.convert(count,TimeUnit.MILLISECONDS)
+                binding.tvTotalSleep.text = "Total Sleep : $count Hours"
+            }
+    }
+
+    private fun distanceCountTotal() {
+        val dateReadRequest = DataReadRequest.Builder()
+            .aggregate(DataType.AGGREGATE_DISTANCE_DELTA)
+            .setTimeRange(startDate!!,endDate!!,TimeUnit.MILLISECONDS)
+            .bucketByTime(1,TimeUnit.DAYS)
+            .build()
+
+        var count = 0f
+
+        Fitness.getHistoryClient(this,getGoogleAccount())
+            .readData(dateReadRequest)
+            .addOnSuccessListener { response->
+                response.buckets.forEach { bucket ->
+                    bucket.dataSets.forEach { dataSet ->
+                        Log.i(TAG, "stepsCountTotal Datatype: ${dataSet.dataPoints.size}")
+                        if (dataSet.dataPoints.isNotEmpty())
+                            count += dataSet.dataPoints.first().getValue(Field.FIELD_DISTANCE).asFloat()
+                    }
+                }
+                binding.tvTotalDistance.text = "Total Distance: $count metres"
+            }
+    }
+
+    private fun calorieCountTotal() {
+        val dateReadRequest = DataReadRequest.Builder()
+            .aggregate(DataType.AGGREGATE_CALORIES_EXPENDED)
+            .setTimeRange(startDate!!,endDate!!,TimeUnit.MILLISECONDS)
+            .bucketByTime(1,TimeUnit.DAYS)
+            .build()
+
+        var count = 0f
+
+        Fitness.getHistoryClient(this,getGoogleAccount())
+            .readData(dateReadRequest)
+            .addOnSuccessListener { response->
+                response.buckets.forEach { bucket ->
+                    bucket.dataSets.forEach { dataSet ->
+                        Log.i(TAG, "stepsCountTotal Datatype: ${dataSet.dataPoints.size}")
+                        if (dataSet.dataPoints.isNotEmpty())
+                            count += dataSet.dataPoints.first().getValue(Field.FIELD_CALORIES).asFloat()
+                    }
+                }
+                binding.tvTotalCalorie.text = "Total Calories: $count KCal"
+            }
+    }
+
+    private fun stepsCountTotal() {
+        val dateReadRequest = DataReadRequest.Builder()
+            .aggregate(DataType.AGGREGATE_STEP_COUNT_DELTA)
+            .setTimeRange(startDate!!,endDate!!,TimeUnit.MILLISECONDS)
+            .bucketByTime(1,TimeUnit.DAYS)
+            .build()
+
+        var count = 0L
+
+        Fitness.getHistoryClient(this,getGoogleAccount())
+            .readData(dateReadRequest)
+            .addOnSuccessListener { response->
+                response.buckets.forEach { bucket ->
+                    bucket.dataSets.forEach { dataSet ->
+                        Log.i(TAG, "stepsCountTotal Datatype: ${dataSet.dataPoints.size}")
+                        if (dataSet.dataPoints.isNotEmpty())
+                            count += dataSet.dataPoints.first().getValue(Field.FIELD_STEPS).asInt()
+                    }
+                }
+                binding.tvTotalSteps.text = "Total Steps: $count"
+            }
     }
 
     private fun writeSleep() {
@@ -141,7 +286,7 @@ class MainActivity : AppCompatActivity() {
         val startTime = calender.timeInMillis
         val sleepSession = Session.Builder()
             .setName(SLEEP_SESSION)
-            .setIdentifier((++sleepCount).toString())
+            .setIdentifier(endTime.toString())
             .setDescription(SLEEP_SESSION_DESC)
             .setStartTime(startTime,TimeUnit.MILLISECONDS)
             .setEndTime(endTime,TimeUnit.MILLISECONDS)
@@ -179,9 +324,9 @@ class MainActivity : AppCompatActivity() {
                     val sessionStart = session.getStartTime(TimeUnit.MILLISECONDS)
                     val sessionEnd = session.getEndTime(TimeUnit.MILLISECONDS)
                     count += (sessionEnd - sessionStart)
-                    count = TimeUnit.HOURS.convert(count,TimeUnit.MILLISECONDS)
                     Log.i(TAG, "Sleep between $sessionStart and $sessionEnd")
                 }
+                count = TimeUnit.HOURS.convert(count,TimeUnit.MILLISECONDS)
                 binding.tvTotalSleep.text = "Total Sleep : $count Hours"
             }
     }
