@@ -20,12 +20,14 @@ import com.google.android.gms.fitness.request.DataReadRequest
 import com.google.android.gms.fitness.request.SessionInsertRequest
 import com.google.android.gms.fitness.request.SessionReadRequest
 import com.google.android.gms.fitness.result.DataReadResponse
+import com.google.android.material.timepicker.TimeFormat
 import com.karumi.dexter.Dexter
 import com.karumi.dexter.PermissionToken
 import com.karumi.dexter.listener.PermissionDeniedResponse
 import com.karumi.dexter.listener.PermissionGrantedResponse
 import com.karumi.dexter.listener.PermissionRequest
 import com.karumi.dexter.listener.single.PermissionListener
+import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -71,19 +73,22 @@ class MainActivity : AppCompatActivity() {
 
         val startDatePicker = DatePickerDialog.OnDateSetListener { view, year, monthOfYear, dayOfMonth ->
             val calendar = Calendar.getInstance(Locale.getDefault())
-            calendar.set(year,monthOfYear,dayOfMonth)
-            val myFormat = "dd/MM/yy" //In which you need put here
-            val sdf = SimpleDateFormat(myFormat, Locale.getDefault())
-            val date = sdf.format(calendar.time)
+            calendar.set(year,monthOfYear,dayOfMonth,0,1,0)
+//            val myFormat = "dd/MM/yy" //In which you need put here
+//            val sdf = SimpleDateFormat(myFormat, Locale.getDefault())
+            val myFormat = DateFormat.getDateTimeInstance(DateFormat.SHORT,DateFormat.SHORT,Locale.getDefault())
+
+            val date = myFormat.format(calendar.time)
             startDate = calendar.timeInMillis
             binding.etStartDate.setText(date.toString())
         }
         val endDatePicker = DatePickerDialog.OnDateSetListener { view, year, monthOfYear, dayOfMonth ->
             val calendar = Calendar.getInstance(Locale.getDefault())
-            calendar.set(year,monthOfYear,dayOfMonth)
-            val myFormat = "dd/MM/yy" //In which you need put here
-            val sdf = SimpleDateFormat(myFormat, Locale.getDefault())
-            val date = sdf.format(calendar.time)
+            calendar.set(year,monthOfYear,dayOfMonth,23,59,59)
+//            val myFormat = "dd/MM/yy" //In which you need put here
+//            val sdf = SimpleDateFormat(myFormat, Locale.getDefault())
+            val myFormat = DateFormat.getDateTimeInstance(DateFormat.SHORT,DateFormat.SHORT,Locale.getDefault())
+            val date = myFormat.format(calendar.time)
             endDate = calendar.timeInMillis
             binding.etEndDate.setText(date.toString())
         }
